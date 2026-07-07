@@ -1,0 +1,6 @@
+{
+  "name": "Vercel VPS Deployer",
+  "description": "An automated web deployment dashboard (mini-Vercel) to deploy, configure Nginx, and manage static sites on an Ubuntu VPS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
