@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FormEvent } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Terminal as TerminalIcon, 
   Globe, 
@@ -248,6 +249,9 @@ export default function App() {
       ...prev,
       `[${new Date().toLocaleTimeString()}] Memulai pembongkaran (Undeploy) untuk subdomain: ${sub}...`
     ]);
+
+    // Berikan jeda waktu 800ms agar animasi exit 3D berputar dulu dengan anggun
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     try {
       const res = await fetch(`/api/sites/${sub}`, {
@@ -721,63 +725,123 @@ export default function App() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <table className="w-full text-left text-xs text-slate-600">
-                        <thead className="bg-slate-50 text-[10px] uppercase tracking-wider font-bold text-slate-500 border-b border-slate-200">
-                          <tr>
-                            <th className="py-3.5 px-4">Nama Subdomain</th>
-                            <th className="py-3.5 px-4">Live URL Domain</th>
-                            <th className="py-3.5 px-4 hidden sm:table-cell">Waktu Deployment</th>
-                            <th className="py-3.5 px-4 text-center">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                          {activeSites.map((site) => (
-                            <tr key={site.subdomain} className="hover:bg-slate-50/50 transition-all">
-                              <td className="py-3.5 px-4 text-slate-900 font-bold">{site.subdomain}</td>
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-blue-600 font-semibold">{site.domain}</span>
-                                  <span className="text-[10px] bg-slate-100 text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 font-sans">
-                                    {deployMode === "VPS" ? "Live DNS" : "Sandbox Preview"}
-                                  </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-1" style={{ perspective: "1200px" }}>
+                      <AnimatePresence>
+                        {activeSites.map((site) => {
+                          const isCurrentlyDeleting = isDeleting === site.subdomain;
+                          return (
+                            <motion.div
+                              key={site.subdomain}
+                              initial={{ opacity: 0, y: 20, scale: 0.95, rotateX: 0 }}
+                              animate={isCurrentlyDeleting ? {
+                                opacity: 0,
+                                scale: 0.4,
+                                rotateX: -85,
+                                rotateY: 30,
+                                z: -180,
+                                y: 50,
+                                transition: { duration: 0.8, ease: "easeInOut" }
+                              } : {
+                                opacity: 1,
+                                y: 0,
+                                scale: 1,
+                                rotateX: 0,
+                                rotateY: 0,
+                                z: 0
+                              }}
+                              exit={{
+                                opacity: 0,
+                                scale: 0.4,
+                                rotateX: -85,
+                                rotateY: 30,
+                                z: -180,
+                                y: 50,
+                                transition: { duration: 0.8 }
+                              }}
+                              whileHover={!isCurrentlyDeleting ? {
+                                scale: 1.02,
+                                rotateY: 4,
+                                rotateX: -2,
+                                z: 12,
+                                transition: { duration: 0.2 }
+                              } : {}}
+                              style={{ transformStyle: "preserve-3d" }}
+                              className={`bg-white border rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md relative overflow-hidden flex flex-col justify-between h-40 ${
+                                isCurrentlyDeleting
+                                  ? "border-rose-300 bg-rose-50/50 ring-2 ring-rose-500/20"
+                                  : "border-slate-200"
+                              }`}
+                            >
+                              {/* 3D background grid effect */}
+                              <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,transparent)] pointer-events-none opacity-40" />
+                              
+                              {/* Glowing status dot */}
+                              <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+                                <span className="relative flex h-2 w-2">
+                                  <span className={`relative inline-flex rounded-full h-2 w-2 ${isCurrentlyDeleting ? "bg-rose-500 animate-pulse" : "bg-emerald-500 animate-pulse"}`}></span>
+                                </span>
+                                <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                                  isCurrentlyDeleting ? "bg-rose-100 text-rose-700" : "bg-emerald-50 text-emerald-700"
+                                }`}>
+                                  {isCurrentlyDeleting ? "Menghapus..." : "Running"}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1 z-10">
+                                <div className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
+                                  Subdomain
                                 </div>
-                              </td>
-                              <td className="py-3.5 px-4 hidden sm:table-cell text-slate-400 font-sans">
-                                {new Date(site.deployedAt).toLocaleString("id-ID")}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center justify-center gap-2">
+                                <div className="text-base font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
+                                  <div className="h-6 w-6 rounded bg-blue-50 flex items-center justify-center border border-blue-100">
+                                    <Globe className="h-3.5 w-3.5 text-blue-600" />
+                                  </div>
+                                  <span>{site.subdomain}</span>
+                                </div>
+                                <div className="text-xs text-blue-600 font-semibold font-mono truncate hover:underline mt-1">
+                                  <a href={deployMode === "VPS" ? site.vpsUrl : site.sandboxUrl} target="_blank" rel="noopener noreferrer">
+                                    {site.domain}
+                                  </a>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-2 z-10">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {new Date(site.deployedAt).toLocaleDateString("id-ID")}
+                                </span>
+                                
+                                <div className="flex items-center gap-2">
                                   {/* Go to Site Link */}
                                   <a
                                     href={deployMode === "VPS" ? site.vpsUrl : site.sandboxUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 py-1.5 px-3 rounded-lg transition-all font-sans text-xs font-semibold shadow-sm"
+                                    className="inline-flex items-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 py-1.5 px-3 rounded-xl transition-all font-sans text-xs font-semibold shadow-sm"
                                   >
                                     <span>Open</span>
                                     <ExternalLink className="h-3 w-3" />
                                   </a>
 
-                                  {/* Delete Site Action */}
+                                  {/* Delete Site Action with 3D Trigger */}
                                   <button
                                     onClick={() => handleDeleteSite(site.subdomain)}
-                                    disabled={isDeleting === site.subdomain}
-                                    className={`inline-flex items-center gap-1 py-1.5 px-3 rounded-lg transition-all border font-sans text-xs font-semibold shadow-sm ${
-                                      isDeleting === site.subdomain
-                                        ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
-                                        : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 cursor-pointer"
+                                    disabled={isDeleting !== null}
+                                    className={`inline-flex items-center gap-1 py-1.5 px-3 rounded-xl transition-all border font-sans text-xs font-semibold shadow-sm ${
+                                      isCurrentlyDeleting
+                                        ? "bg-rose-100 border-rose-300 text-rose-400 cursor-not-allowed"
+                                        : isDeleting !== null
+                                          ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+                                          : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 cursor-pointer hover:scale-[1.03] active:scale-[0.97]"
                                     }`}
                                   >
-                                    <Trash2 className="h-3 w-3" />
-                                    <span>{isDeleting === site.subdomain ? "Deleting..." : "Hapus"}</span>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    <span>{isCurrentlyDeleting ? "Deleting" : "Hapus"}</span>
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
                     </div>
                   )}
                 </div>
@@ -1029,17 +1093,18 @@ export default function App() {
                           )}
                           
                           {file.name !== "index.html" && (
-                            <button
-                              type="button"
+                            <div
+                              className="icon-trash text-slate-400 hover:text-rose-600 p-1 rounded-lg transition-colors cursor-pointer"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteFile(file.name);
                               }}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded-lg transition-colors"
                               title="Hapus berkas"
+                              role="button"
+                              tabIndex={0}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            </div>
                           )}
                         </div>
                       </div>
