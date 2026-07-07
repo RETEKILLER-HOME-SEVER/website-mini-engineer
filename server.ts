@@ -143,7 +143,7 @@ app.get("/api/sites", (req, res) => {
  * Standard deployment engine with strict sanitization and rollback routines
  */
 app.post("/api/deploy", async (req, res) => {
-  const { subdomain, htmlCode, cssCode, jsCode } = req.body;
+  const { subdomain, htmlCode, cssCode, jsCode, files } = req.body;
   const logs: string[] = [];
   const { mode } = getDeployMode();
 
@@ -210,25 +210,40 @@ app.post("/api/deploy", async (req, res) => {
       folderCreated = true;
     }
 
-    // Write index.html
-    const htmlWithRefs = htmlCode.includes('href="style.css"') 
-      ? htmlCode 
-      : htmlCode.replace('</head>', '  <link rel="stylesheet" href="style.css">\n</head>');
-    
-    const htmlWithScript = htmlWithRefs.includes('src="script.js"')
-      ? htmlWithRefs
-      : htmlWithRefs.replace('</body>', '  <script src="script.js"></script>\n</body>');
+    // Write files to target directory
+    if (files && Array.isArray(files)) {
+      for (const file of files) {
+        if (file && typeof file.name === "string" && typeof file.content === "string") {
+          // Sanitize filename to prevent directory traversal
+          const safeName = path.basename(file.name);
+          if (safeName && safeName !== ".." && safeName !== ".") {
+            fs.writeFileSync(path.join(targetWebDir, safeName), file.content);
+            filesWritten.push(safeName);
+          }
+        }
+      }
+      logs.push(`[${new Date().toLocaleTimeString()}] Sukses menulis ${filesWritten.length} berkas: ${filesWritten.join(", ")}`);
+    } else {
+      // Fallback to legacy single html/css/js layout
+      const htmlWithRefs = htmlCode.includes('href="style.css"') 
+        ? htmlCode 
+        : htmlCode.replace('</head>', '  <link rel="stylesheet" href="style.css">\n</head>');
+      
+      const htmlWithScript = htmlWithRefs.includes('src="script.js"')
+        ? htmlWithRefs
+        : htmlWithRefs.replace('</body>', '  <script src="script.js"></script>\n</body>');
 
-    fs.writeFileSync(path.join(targetWebDir, "index.html"), htmlWithScript);
-    filesWritten.push("index.html");
+      fs.writeFileSync(path.join(targetWebDir, "index.html"), htmlWithScript);
+      filesWritten.push("index.html");
 
-    fs.writeFileSync(path.join(targetWebDir, "style.css"), cssCode || "/* Custom CSS */");
-    filesWritten.push("style.css");
+      fs.writeFileSync(path.join(targetWebDir, "style.css"), cssCode || "/* Custom CSS */");
+      filesWritten.push("style.css");
 
-    fs.writeFileSync(path.join(targetWebDir, "script.js"), jsCode || "// Custom JavaScript");
-    filesWritten.push("script.js");
+      fs.writeFileSync(path.join(targetWebDir, "script.js"), jsCode || "// Custom JavaScript");
+      filesWritten.push("script.js");
 
-    logs.push(`[${new Date().toLocaleTimeString()}] Sukses menulis berkas: index.html, style.css, script.js`);
+      logs.push(`[${new Date().toLocaleTimeString()}] Sukses menulis berkas legacy: index.html, style.css, script.js`);
+    }
 
     // 4. AUTOMATED NGINX VHOST CONFIGURATION (child_process)
     if (mode === "VPS") {
